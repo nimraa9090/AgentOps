@@ -4,12 +4,24 @@ Main FastAPI entry point with CORS and health routes.
 """
 
 from contextlib import asynccontextmanager
+import logging
 from typing import Any, Dict
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.database import close_database_connection
+from app.database import close_database_connection, get_database
+from app.repositories.agent_repository import init_agent_indexes
+from app.repositories.workflow_repository import init_workflow_indexes
 from app.routes.health import router as health_router
+from app.routes.agents import router as agents_router
+from app.routes.workflows import router as workflows_router
+
+# Setup safe structured logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("agentops.main")
 
 
 @asynccontextmanager
@@ -17,9 +29,34 @@ async def lifespan(app: FastAPI):
     """
     Manages application startup and graceful shutdown tasks.
     """
-    # Startup: App initialization
+    # Safe startup diagnostic logging without exposing sensitive secrets
+    db_summary = settings.get_safe_db_summary()
+    logger.info("Initializing %s (v%s) in '%s' environment", settings.PROJECT_NAME, settings.VERSION, settings.ENVIRONMENT)
+    logger.info(
+        "Database configuration loaded: is_configured=%s, scheme='%s', database='%s', env_file_found=%s",
+        db_summary["is_configured"],
+        db_summary["scheme"],
+        db_summary["database_name"],
+        db_summary["env_file_found"],
+    )
+
+    # Initialize database indexes safely if database is connected
+    try:
+        db = get_database()
+        if db is not None:
+            agent_indexes = init_agent_indexes(db)
+            logger.info("MongoDB indexes verified for 'agents' collection: %s", agent_indexes)
+            wf_indexes = init_workflow_indexes(db)
+            logger.info("MongoDB indexes verified for 'workflows' collection: %s", wf_indexes)
+        else:
+            logger.warning("MongoDB not configured; skipping index initialization.")
+    except Exception as exc:
+        logger.warning("MongoDB index initialization skipped: %s", str(exc))
+
     yield
+
     # Shutdown: Cleanly close database connection pool
+    logger.info("Shutting down %s, closing database connections...", settings.PROJECT_NAME)
     close_database_connection()
 
 
@@ -44,6 +81,8 @@ app.add_middleware(
 
 # Register API v1 routes
 app.include_router(health_router, prefix="/api/v1")
+app.include_router(agents_router, prefix="/api/v1")
+app.include_router(workflows_router, prefix="/api/v1")
 
 
 @app.get(

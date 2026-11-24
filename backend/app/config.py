@@ -1,11 +1,25 @@
 """
 Application configuration management using pydantic-settings.
-Loads settings from environment variables and the local .env file.
+Loads settings from environment variables and the backend .env file.
 """
 
-from typing import List, Optional, Union
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+import logging
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
+
+# Explicitly locate backend directory and .env file
+# This prevents relative path mismatches when uvicorn is launched from the project root
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+ENV_FILE_PATH = BACKEND_DIR / ".env"
+
+# Load .env into process environment if it exists
+if ENV_FILE_PATH.exists():
+    load_dotenv(dotenv_path=ENV_FILE_PATH, override=False)
+
+logger = logging.getLogger("agentops.config")
 
 
 class Settings(BaseSettings):
@@ -40,14 +54,35 @@ class Settings(BaseSettings):
         Supports parsing either a JSON list or a comma-separated string of origins.
         """
         if isinstance(value, str):
-            # If comma-separated, split into a clean list of origins
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         elif isinstance(value, list):
             return value
         return ["http://localhost:3000"]
 
+    def get_safe_db_summary(self) -> Dict[str, Any]:
+        """
+        Returns safe diagnostic metadata about MongoDB configuration
+        WITHOUT exposing credentials, passwords, or the full URI.
+        """
+        is_configured = bool(self.MONGODB_URI and self.MONGODB_URI.strip())
+        uri_scheme = "none"
+        if is_configured and self.MONGODB_URI:
+            if "://" in self.MONGODB_URI:
+                uri_scheme = self.MONGODB_URI.split("://")[0]
+            else:
+                uri_scheme = "custom"
+
+        return {
+            "is_configured": is_configured,
+            "database_name": self.DATABASE_NAME,
+            "scheme": uri_scheme,
+            "env_file_found": ENV_FILE_PATH.exists(),
+            "env_file_path": str(ENV_FILE_PATH),
+        }
+
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Check both the explicit backend/.env path and fallback to working directory .env
+        env_file=(str(ENV_FILE_PATH), ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
