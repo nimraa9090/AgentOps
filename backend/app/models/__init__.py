@@ -22,6 +22,15 @@ from app.models.workflow import (
     WorkflowStep,
     WorkflowUpdate,
 )
+from app.models.execution import (
+    ExecutionBase,
+    ExecutionCreate,
+    ExecutionInDB,
+    ExecutionResponse,
+    ExecutionStatus,
+    ExecutionStep,
+    ExecutionUpdate,
+)
 
 __all__ = [
     "MongoBaseModel",
@@ -42,4 +51,11 @@ __all__ = [
     "WorkflowStatus",
     "WorkflowStep",
     "WorkflowUpdate",
+    "ExecutionBase",
+    "ExecutionCreate",
+    "ExecutionInDB",
+    "ExecutionResponse",
+    "ExecutionStatus",
+    "ExecutionStep",
+    "ExecutionUpdate",
 ]

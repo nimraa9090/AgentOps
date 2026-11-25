@@ -12,6 +12,7 @@ from app.config import settings
 from app.database import close_database_connection, get_database
 from app.repositories.agent_repository import init_agent_indexes
 from app.repositories.workflow_repository import init_workflow_indexes
+from app.repositories.execution_repository import init_execution_indexes
 from app.routes.health import router as health_router
 from app.routes.agents import router as agents_router
 from app.routes.workflows import router as workflows_router
@@ -48,6 +49,8 @@ async def lifespan(app: FastAPI):
             logger.info("MongoDB indexes verified for 'agents' collection: %s", agent_indexes)
             wf_indexes = init_workflow_indexes(db)
             logger.info("MongoDB indexes verified for 'workflows' collection: %s", wf_indexes)
+            exec_indexes = init_execution_indexes(db)
+            logger.info("MongoDB indexes verified for 'executions' collection: %s", exec_indexes)
         else:
             logger.warning("MongoDB not configured; skipping index initialization.")
     except Exception as exc:

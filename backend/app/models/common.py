@@ -74,6 +74,15 @@ class MongoBaseModel(BaseModel):
 class TimestampedModel(MongoBaseModel):
     """
     Base model including created_at and updated_at UTC timestamps.
+    Automatically ensures loaded datetimes are timezone-aware UTC.
     """
     created_at: datetime = Field(default_factory=now_utc)
     updated_at: datetime = Field(default_factory=now_utc)
+
+    @model_validator(mode="after")
+    def ensure_utc_tz(self) -> "TimestampedModel":
+        if self.created_at and self.created_at.tzinfo is None:
+            self.created_at = self.created_at.replace(tzinfo=timezone.utc)
+        if self.updated_at and self.updated_at.tzinfo is None:
+            self.updated_at = self.updated_at.replace(tzinfo=timezone.utc)
+        return self
